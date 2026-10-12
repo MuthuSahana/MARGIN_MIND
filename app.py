@@ -1,186 +1,166 @@
+import os
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+from datetime import datetime
 
+# ==========================================
+# PAGE CONFIGURATION & THEMING
+# ==========================================
 st.set_page_config(
-    page_title="MarginMind",
+    page_title="MarginMind - Financial Intelligence",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-st.title("📊 MarginMind")
-st.subheader("Financial Integrity & Intelligence")
+# Custom CSS for UI/UX Polish
+st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1E88E5;
+        margin-bottom: 0px;
+    }
+    .sub-header {
+        font-size: 1.1rem;
+        color: #B0BEC5;
+        margin-bottom: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-st.write(
-    "Compare reported financial figures with "
-    "results reconstructed from available records."
-)
+# ==========================================
+# SIDEBAR & BRANDING
+# ==========================================
+logo_path = "logo.png"
+if os.path.exists(logo_path):
+    st.sidebar.image(logo_path, use_column_width=True)
+else:
+    st.sidebar.title("📊 MarginMind")
 
-st.info(
-    "A discrepancy is a signal for investigation, "
-    "not proof of fraud."
-)
+st.sidebar.markdown("---")
+st.sidebar.header("Company Settings")
+company_name = st.sidebar.text_input("Company Name", "Demo Company")
+reported_profit = st.sidebar.number_input("Reported Profit (₹)", value=2600000.0, step=100000.0)
 
-st.sidebar.header("Company Information")
+st.sidebar.markdown("---")
+st.sidebar.caption("MarginMind v1.0 • Hackathon Edition")
 
-company = st.sidebar.text_input(
-    "Company name",
-    value="Demo Company",
-)
+# ==========================================
+# MAIN DASHBOARD HEADER
+# ==========================================
+st.markdown(f"<div class='main-header'>MarginMind — {company_name}</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-header'>Financial Integrity & Recon Analysis Platform</div>", unsafe_allow_html=True)
 
-reported_profit = st.number_input(
-    "Reported profit (₹)",
-    min_value=-1_000_000_000.0,
-    max_value=1_000_000_000.0,
-    value=2_600_000.0,
-    step=10_000.0,
-)
+st.info("💡 **Notice**: A financial discrepancy is a signal for investigation, not proof of fraud.")
 
-uploaded_file = st.file_uploader(
-    "Upload financial transactions (CSV)",
-    type=["csv"],
-)
+# ==========================================
+# FILE UPLOAD & RECONCILIATION ENGINE
+# ==========================================
+uploaded_file = st.file_uploader("Upload Financial Transaction Ledger (CSV)", type=["csv"])
 
 if uploaded_file is not None:
-
     try:
         df = pd.read_csv(uploaded_file)
-
-        required = {
-            "reference_id",
-            "type",
-            "amount",
-        }
-
-        if not required.issubset(df.columns):
-            st.error(
-                "CSV must contain reference_id, type and amount."
-            )
-
-        elif df.empty:
-            st.error("The CSV contains no transactions.")
-
+        
+        required_cols = ["reference_id", "type", "amount"]
+        if not all(col in df.columns for col in required_cols):
+            st.error(f"Invalid CSV structure. Missing required columns: `{required_cols}`")
         else:
-            df["amount"] = pd.to_numeric(
-                df["amount"],
-                errors="raise",
+            # Data Processing
+            df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+            df["type"] = df["type"].astype(str).str.lower().str.strip()
+            
+            # Key Calculations
+            total_revenue = df[df["type"] == "revenue"]["amount"].sum()
+            total_expenses = df[df["type"] == "expense"]["amount"].sum()
+            reconstructed_profit = total_revenue - total_expenses
+            discrepancy = reported_profit - reconstructed_profit
+            
+            st.markdown("### 📈 Executive Summary")
+            
+            # Metric Display Cards
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Revenue", f"₹{total_revenue:,.0f}")
+            m2.metric("Total Expenses", f"₹{total_expenses:,.0f}")
+            m3.metric("Reconstructed Profit", f"₹{reconstructed_profit:,.0f}")
+            m4.metric(
+                "Discrepancy", 
+                f"₹{abs(discrepancy):,.0f}", 
+                delta=f"₹{-discrepancy:,.0f}", 
+                delta_inverse=True
             )
-
-            if df["amount"].isna().any():
-                st.error("Transaction amounts cannot be empty.")
-
-            elif (
-                not df["type"].isin(["revenue", "expense"]).all()
-            ):
-                st.error(
-                    "Transaction types must be revenue or expense."
-                )
-
-            elif (
-                (df["amount"] < 0).any()
-                or not df["amount"].map(
-                    lambda x: pd.notna(x) and x < float("inf")
-                ).all()
-            ):
-                st.error(
-                    "Amounts must be finite and non-negative."
-                )
-
+            
+            st.markdown("---")
+            
+            # Status Alerts
+            if discrepancy == 0:
+                st.success("✅ **Reconciliation Match**: Reported profit matches calculated profit exactly.")
             else:
-                revenue = df.loc[
-                    df["type"] == "revenue",
-                    "amount",
-                ].sum()
+                st.warning(f"⚠️ **Unexplained Discrepancy**: Reported profit differs from calculated profit by **₹{abs(discrepancy):,.0f}**.")
 
-                expenses = df.loc[
-                    df["type"] == "expense",
-                    "amount",
-                ].sum()
-
-                reconstructed_profit = revenue - expenses
-
-                difference = (
-                    reported_profit - reconstructed_profit
-                )
-
-                st.divider()
-                st.header("Financial Analysis")
-
-                col1, col2, col3 = st.columns(3)
-
-                col1.metric(
-                    "Reported Profit",
-                    f"₹{reported_profit:,.0f}",
-                )
-
-                col2.metric(
-                    "Reconstructed Profit",
-                    f"₹{reconstructed_profit:,.0f}",
-                )
-
-                col3.metric(
-                    "Difference",
-                    f"₹{difference:,.0f}",
-                )
-
-                if abs(difference) > 0.01:
-                    st.warning(
-                        "Review recommended: reported and "
-                        "reconstructed profit differ."
-                    )
-                else:
-                    st.success(
-                        "The figures reconcile under the "
-                        "current calculation assumptions."
-                    )
-
-                duplicates = df[
-                    df["reference_id"].duplicated(keep=False)
-                ]
-
-                st.subheader("Transaction Records")
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                )
-
-                st.subheader("Duplicate References")
-
-                if duplicates.empty:
-                    st.success(
-                        "No duplicate reference IDs detected."
-                    )
-                else:
-                    st.dataframe(
-                        duplicates,
-                        use_container_width=True,
-                    )
-
-                chart_data = pd.DataFrame({
-                    "Category": ["Revenue", "Expenses"],
-                    "Amount": [revenue, expenses],
+            # Dashboard Tabs for UI Organization
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Financial Visuals", "📋 Transaction Ledger", "🔍 Anomaly Detection", "📥 Download Report"])
+            
+            with tab1:
+                chart_df = pd.DataFrame({
+                    "Category": ["Total Revenue", "Total Expenses", "Reconstructed Profit", "Reported Profit"],
+                    "Amount (₹)": [total_revenue, total_expenses, reconstructed_profit, reported_profit]
                 })
+                fig = px.bar(
+                    chart_df, 
+                    x="Category", 
+                    y="Amount (₹)", 
+                    color="Category", 
+                    text_auto=".2s",
+                    title="Financial Overview & Profit Reconciliation"
+                )
+                fig.update_layout(showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+                
+            with tab2:
+                st.subheader("Raw Ledger Entries")
+                st.dataframe(df, use_container_width=True)
+                
+            with tab3:
+                st.subheader("Automated Anomaly Audit")
+                
+                # Check 1: Duplicate Transaction IDs
+                duplicates = df[df.duplicated(subset=["reference_id"], keep=False)]
+                if not duplicates.empty:
+                    st.error(f"🚨 **Duplicate Reference IDs Detected**: Found {len(duplicates)} records.")
+                    st.dataframe(duplicates)
+                else:
+                    st.success("✅ No duplicate reference IDs detected.")
+                    
+                # Check 2: High Value Transactions (> 25% of Revenue)
+                high_val = df[df["amount"] > (total_revenue * 0.25)]
+                if not high_val.empty:
+                    st.info("ℹ️ **High-Value Items**: Transactions exceeding 25% of total revenue:")
+                    st.dataframe(high_val)
 
-                st.subheader("Revenue vs Expenses")
-
-                st.bar_chart(
-                    chart_data.set_index("Category")
+            with tab4:
+                st.subheader("Export Investigation Report")
+                st.write("Generate and download a structured summary report for auditors or investors.")
+                
+                # Create summary report dataframe
+                report_data = pd.DataFrame({
+                    "Metric": ["Company Name", "Analysis Timestamp", "Reported Profit (₹)", "Total Revenue (₹)", "Total Expenses (₹)", "Reconstructed Profit (₹)", "Absolute Discrepancy (₹)"],
+                    "Value": [company_name, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), reported_profit, total_revenue, total_expenses, reconstructed_profit, abs(discrepancy)]
+                })
+                
+                csv_report = report_data.to_csv(index=False).encode('utf-8')
+                
+                st.download_button(
+                    label="📥 Download Audit Summary (CSV)",
+                    data=csv_report,
+                    file_name=f"{company_name}_MarginMind_Report.csv",
+                    mime="text/csv",
                 )
 
-                st.caption(
-                    "This is a simplified reconstruction using "
-                    "the supplied transactions. Missing records, "
-                    "accounting adjustments and classification "
-                    "differences can affect the result. A "
-                    "discrepancy does not establish fraud."
-                )
-
-    except Exception:
-        st.error(
-            "Unable to analyse this file. Check the CSV format "
-            "and ensure all amounts are valid numbers."
-        )
-
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
 else:
-    st.info(
-        "Upload a CSV to begin analysing the company's finances."
-    )
+    st.info("👆 Upload `sample_transactions.csv` above to run the analysis.")
