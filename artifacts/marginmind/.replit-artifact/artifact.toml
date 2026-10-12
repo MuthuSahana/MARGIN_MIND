@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "MarginMind"
+description = "Financial transparency and margin intelligence for small businesses and online sellers. Import statements and transaction data, review evidence-backed profit and loss calculations, investigate potential discrepancies, explore product margins, and export reports."
+version = "1.0.0"
+id = "artifacts/marginmind"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21930
+
+[services.development]
+run = "pnpm --filter @workspace/marginmind run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/marginmind", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/marginmind/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21930"
+BASE_PATH = "/"

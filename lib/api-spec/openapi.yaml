@@ -1,0 +1,845 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: MarginMind financial data, analysis, and reporting API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: workspace
+    description: Authenticated user and company workspace
+  - name: imports
+    description: Financial transaction imports
+  - name: analysis
+    description: Evidence-based financial reconstruction and findings
+  - name: products
+    description: Product contribution and saved scenarios
+  - name: reports
+    description: Persisted analysis reports
+  - name: settings
+    description: User preferences
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /me:
+    get:
+      operationId: getCurrentUser
+      tags: [workspace]
+      summary: Get the signed-in user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /companies:
+    get:
+      operationId: listCompanies
+      tags: [workspace]
+      summary: List companies owned by the signed-in user
+      responses:
+        "200":
+          description: Company list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Company"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createCompany
+      tags: [workspace]
+      summary: Create a company workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyInput"
+      responses:
+        "201":
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /companies/{companyId}:
+    patch:
+      operationId: updateCompany
+      tags: [workspace]
+      summary: Update an owned company
+      parameters:
+        - $ref: "#/components/parameters/CompanyId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyUpdate"
+      responses:
+        "200":
+          description: Company updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Company"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [analysis]
+      summary: Get the current company's evidence-backed overview
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /imports/request-upload-url:
+    post:
+      operationId: requestImportUploadUrl
+      tags: [imports]
+      summary: Request a private upload URL for a source file
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadRequest"
+      responses:
+        "200":
+          description: Signed upload URL and private object path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /imports:
+    get:
+      operationId: listImports
+      tags: [imports]
+      summary: List imports for an owned company
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Import history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: importTransactions
+      tags: [imports]
+      summary: Persist a validated import, retaining invalid source rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionImportInput"
+      responses:
+        "201":
+          description: Import stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /transactions:
+    get:
+      operationId: listTransactions
+      tags: [imports]
+      summary: Search source transactions and validation states
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: validOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /analysis/run:
+    post:
+      operationId: runAnalysis
+      tags: [analysis]
+      summary: Reconstruct financial results from valid imported records
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalysisInput"
+      responses:
+        "201":
+          description: Persisted analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /analysis/latest:
+    get:
+      operationId: getLatestAnalysis
+      tags: [analysis]
+      summary: Get the latest persisted analysis for an owned company
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Latest analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /analysis/history:
+    get:
+      operationId: listAnalysisHistory
+      tags: [analysis]
+      summary: List persisted analyses for an owned company
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Analysis history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalysisResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /anomalies:
+    get:
+      operationId: listFindings
+      tags: [analysis]
+      summary: List current and historical review findings
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Findings linked to supporting transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finding"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /anomalies/{findingId}:
+    patch:
+      operationId: updateFinding
+      tags: [analysis]
+      summary: Review or reopen a finding
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FindingUpdate"
+      responses:
+        "200":
+          description: Updated finding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Finding"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: Calculate product contribution from imported sales rows
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Product contribution summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProductSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /scenarios:
+    get:
+      operationId: listScenarios
+      tags: [products]
+      summary: List saved product margin scenarios
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Saved scenarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scenario"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: saveScenario
+      tags: [products]
+      summary: Save a calculated product contribution scenario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScenarioInput"
+      responses:
+        "201":
+          description: Scenario saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scenario"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reports:
+    get:
+      operationId: listReports
+      tags: [reports]
+      summary: List persisted reports
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdQuery"
+      responses:
+        "200":
+          description: Saved reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Report"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createReport
+      tags: [reports]
+      summary: Generate a report from a persisted analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportInput"
+      responses:
+        "201":
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /reports/{reportId}/export:
+    get:
+      operationId: exportReport
+      tags: [reports]
+      summary: Export a persisted report as CSV
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Downloadable CSV content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportExport"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get the signed-in user's preferences
+      responses:
+        "200":
+          description: User settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update the signed-in user's preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+components:
+  parameters:
+    CompanyId:
+      name: companyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CompanyIdQuery:
+      name: companyId
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found or not accessible
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    CurrentUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: ["string", "null"]
+        name:
+          type: ["string", "null"]
+      required: [id, email, name]
+    Company:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        industry: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: string }
+        fiscalYearEnd: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, name, description, industry, country, currency, fiscalYearEnd, createdAt]
+    CompanyInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: ["string", "null"] }
+        industry: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        fiscalYearEnd: { type: ["string", "null"], pattern: "^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$" }
+      required: [name, currency]
+    CompanyUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: ["string", "null"] }
+        industry: { type: ["string", "null"] }
+        country: { type: ["string", "null"] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        fiscalYearEnd: { type: ["string", "null"] }
+    DashboardSummary:
+      type: object
+      properties:
+        company: { $ref: "#/components/schemas/Company" }
+        hasAnalysis: { type: boolean }
+        latestAnalysis: { oneOf: [{ $ref: "#/components/schemas/AnalysisResult" }, { type: "null" }] }
+        transactionCount: { type: integer }
+        validTransactionCount: { type: integer }
+        invalidTransactionCount: { type: integer }
+        importCount: { type: integer }
+        openFindingCount: { type: integer }
+        productCount: { type: integer }
+      required: [company, hasAnalysis, latestAnalysis, transactionCount, validTransactionCount, invalidTransactionCount, importCount, openFindingCount, productCount]
+    UploadRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        size: { type: integer, minimum: 1, maximum: 20971520 }
+        contentType: { type: string }
+      required: [name, size, contentType]
+    UploadResponse:
+      type: object
+      properties:
+        uploadURL: { type: string, format: uri }
+        objectPath: { type: string }
+      required: [uploadURL, objectPath]
+    TransactionRowInput:
+      type: object
+      properties:
+        sourceLine: { type: integer, minimum: 1 }
+        sourceId: { type: ["string", "null"] }
+        date: { type: ["string", "null"], format: date }
+        description: { type: ["string", "null"] }
+        type: { type: string, minLength: 1, maxLength: 80 }
+        amount: { type: ["number", "null"] }
+        amountBasis: { type: string, enum: [gross, net, not_applicable, unknown] }
+        currency: { type: ["string", "null"] }
+        productName: { type: ["string", "null"] }
+        quantity: { type: ["number", "null"] }
+        unitPrice: { type: ["number", "null"] }
+        discountAmount: { type: ["number", "null"] }
+        unitCost: { type: ["number", "null"] }
+        packagingCost: { type: ["number", "null"] }
+        deliveryCost: { type: ["number", "null"] }
+        paymentFee: { type: ["number", "null"] }
+        returnedQuantity: { type: ["number", "null"] }
+        raw: { type: object, additionalProperties: true }
+      required: [sourceLine, type, amount, amountBasis, raw]
+    TransactionImportInput:
+      type: object
+      properties:
+        companyId: { type: string, format: uuid }
+        fileName: { type: string, minLength: 1, maxLength: 255 }
+        sourceObjectPath: { type: ["string", "null"] }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 128 }
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items: { $ref: "#/components/schemas/TransactionRowInput" }
+      required: [companyId, fileName, idempotencyKey, rows]
+    ImportSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fileName: { type: string }
+        status: { type: string, enum: [completed, completed_with_issues, failed] }
+        sourceObjectPath: { type: ["string", "null"] }
+        rowCount: { type: integer }
+        validRowCount: { type: integer }
+        invalidRowCount: { type: integer }
+        duplicateCandidateCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+      required: [id, fileName, status, sourceObjectPath, rowCount, validRowCount, invalidRowCount, duplicateCandidateCount, createdAt]
+    Transaction:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        importId: { type: string, format: uuid }
+        sourceLine: { type: integer }
+        sourceId: { type: ["string", "null"] }
+        date: { type: ["string", "null"], format: date }
+        description: { type: ["string", "null"] }
+        type: { type: string }
+        amount: { type: ["number", "null"] }
+        amountBasis: { type: string }
+        currency: { type: ["string", "null"] }
+        productName: { type: ["string", "null"] }
+        quantity: { type: ["number", "null"] }
+        unitPrice: { type: ["number", "null"] }
+        discountAmount: { type: ["number", "null"] }
+        unitCost: { type: ["number", "null"] }
+        packagingCost: { type: ["number", "null"] }
+        deliveryCost: { type: ["number", "null"] }
+        paymentFee: { type: ["number", "null"] }
+        returnedQuantity: { type: ["number", "null"] }
+        isValid: { type: boolean }
+        validationIssues: { type: array, items: { type: string } }
+        duplicateCandidate: { type: boolean }
+        raw: { type: object, additionalProperties: true }
+      required: [id, importId, sourceLine, sourceId, date, description, type, amount, amountBasis, currency, productName, quantity, unitPrice, discountAmount, unitCost, packagingCost, deliveryCost, paymentFee, returnedQuantity, isValid, validationIssues, duplicateCandidate, raw]
+    TransactionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Transaction" }
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+      required: [items, total, page, pageSize]
+    AnalysisInput:
+      type: object
+      properties:
+        companyId: { type: string, format: uuid }
+        periodStart: { type: ["string", "null"], format: date }
+        periodEnd: { type: ["string", "null"], format: date }
+        reportedRevenue: { type: ["number", "null"] }
+        reportedExpenses: { type: ["number", "null"] }
+        reportedProfit: { type: ["number", "null"] }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+      required: [companyId, currency]
+    AnalysisResult:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        companyId: { type: string, format: uuid }
+        periodStart: { type: ["string", "null"], format: date }
+        periodEnd: { type: ["string", "null"], format: date }
+        currency: { type: string }
+        reconstructedRevenue: { type: number }
+        reconstructedExpenses: { type: number }
+        reconstructedProfit: { type: number }
+        reportedRevenue: { type: ["number", "null"] }
+        reportedExpenses: { type: ["number", "null"] }
+        reportedProfit: { type: ["number", "null"] }
+        profitDifference: { type: ["number", "null"] }
+        profitDifferencePercent: { type: ["number", "null"] }
+        includedTransactionCount: { type: integer }
+        excludedTransactionCount: { type: integer }
+        methodology: { type: string }
+        limitations: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+      required: [id, companyId, periodStart, periodEnd, currency, reconstructedRevenue, reconstructedExpenses, reconstructedProfit, reportedRevenue, reportedExpenses, reportedProfit, profitDifference, profitDifferencePercent, includedTransactionCount, excludedTransactionCount, methodology, limitations, createdAt]
+    Finding:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        analysisId: { type: string, format: uuid }
+        companyId: { type: string, format: uuid }
+        category: { type: string }
+        severity: { type: string, enum: [info, warning, high] }
+        title: { type: string }
+        explanation: { type: string }
+        status: { type: string, enum: [open, reviewed, dismissed] }
+        reviewNote: { type: ["string", "null"] }
+        transactionIds: { type: array, items: { type: string, format: uuid } }
+        sourceLines: { type: array, items: { type: integer } }
+        createdAt: { type: string, format: date-time }
+      required: [id, analysisId, companyId, category, severity, title, explanation, status, reviewNote, transactionIds, sourceLines, createdAt]
+    FindingUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [open, reviewed, dismissed] }
+        reviewNote: { type: ["string", "null"], maxLength: 2000 }
+      required: [status]
+    ProductSummary:
+      type: object
+      properties:
+        productName: { type: string }
+        currency: { type: string }
+        unitsSold: { type: ["number", "null"] }
+        grossSales: { type: number }
+        discounts: { type: number }
+        returns: { type: number }
+        retainedNetSales: { type: number }
+        variableCosts: { type: ["number", "null"] }
+        contribution: { type: ["number", "null"] }
+        contributionMargin: { type: ["number", "null"] }
+        costCoverage: { type: string, enum: [complete, partial, missing] }
+        costCoverageNotes: { type: string }
+        sourceRowCount: { type: integer }
+      required: [productName, currency, unitsSold, grossSales, discounts, returns, retainedNetSales, variableCosts, contribution, contributionMargin, costCoverage, costCoverageNotes, sourceRowCount]
+    ScenarioInput:
+      type: object
+      properties:
+        companyId: { type: string, format: uuid }
+        productName: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        newUnitPrice: { type: number, minimum: 0 }
+        newDiscountPercent: { type: number, minimum: 0, maximum: 100 }
+        newUnitCost: { type: number, minimum: 0 }
+      required: [companyId, productName, name, newUnitPrice, newDiscountPercent, newUnitCost]
+    Scenario:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        companyId: { type: string, format: uuid }
+        productName: { type: string }
+        name: { type: string }
+        newUnitPrice: { type: number }
+        newDiscountPercent: { type: number }
+        newUnitCost: { type: number }
+        estimatedUnitContribution: { type: number }
+        estimatedMonthlyContribution: { type: ["number", "null"] }
+        baselineUnitContribution: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, companyId, productName, name, newUnitPrice, newDiscountPercent, newUnitCost, estimatedUnitContribution, estimatedMonthlyContribution, baselineUnitContribution, createdAt]
+    ReportInput:
+      type: object
+      properties:
+        companyId: { type: string, format: uuid }
+        analysisId: { type: string, format: uuid }
+        title: { type: string, minLength: 1, maxLength: 160 }
+      required: [companyId, analysisId, title]
+    Report:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        companyId: { type: string, format: uuid }
+        analysisId: { type: string, format: uuid }
+        title: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, companyId, analysisId, title, createdAt]
+    ReportExport:
+      type: object
+      properties:
+        fileName: { type: string }
+        contentType: { type: string }
+        content: { type: string }
+      required: [fileName, contentType, content]
+    UserSettings:
+      type: object
+      properties:
+        currency: { type: string }
+        periodStartDay: { type: integer, minimum: 1, maximum: 28 }
+        notificationsEnabled: { type: boolean }
+      required: [currency, periodStartDay, notificationsEnabled]
+    UserSettingsUpdate:
+      type: object
+      properties:
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        periodStartDay: { type: integer, minimum: 1, maximum: 28 }
+        notificationsEnabled: { type: boolean }
+

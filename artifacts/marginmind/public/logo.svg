@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="184" height="40" viewBox="0 0 184 40" fill="none">
+  <rect x="2" y="4" width="32" height="32" rx="9" fill="#0066FF"/>
+  <path d="M9.5 27V13.5h4.1l4.4 6.1 4.4-6.1h4.1V27h-4v-7.2l-4.5 6-4.5-6V27h-4Z" fill="white"/>
+  <text x="44" y="27" fill="#1A1A1A" font-family="Manrope, Arial, sans-serif" font-size="19" font-weight="800" letter-spacing="-0.7">marginmind</text>
+</svg>
